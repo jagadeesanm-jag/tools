@@ -1,0 +1,28 @@
+package org.emc.topology.dataObjects;
+
+import java.util.List;
+
+import com.google.common.collect.ArrayListMultimap;
+
+public class TopologyXmlData {
+	private ArrayListMultimap<String, List<String>> vStoragepoolHostMap = ArrayListMultimap.create();
+	private ArrayListMultimap<String, List<String>> vArrayStoragepoolMap = ArrayListMultimap.create();
+	private ArrayListMultimap<String, List<String>> vStoragepoolVolumeMap = ArrayListMultimap.create();
+	
+	public TopologyXmlData() {
+	}
+	public ArrayListMultimap<String, List<String>> getvStoragepoolHostMap() {
+		return vStoragepoolHostMap;
+	}
+	public void setvStoragepoolHostMap(
+			ArrayListMultimap<String, List<String>> vStoragepoolHostMap) {
+		this.vStoragepoolHostMap = vStoragepoolHostMap;
+	}
+	public ArrayListMultimap<String, List<String>> getvArrayStoragepoolMap() {
+		return vArrayStoragepoolMap;
+	}
+	public void setvArrayStoragepoolMap(
+			ArrayListMultimap<String, List<String>> vArrayStoragepoolMap) {
+		this.vArrayStoragepoolMap = vArrayStoragepoolMap;
+	}
+}

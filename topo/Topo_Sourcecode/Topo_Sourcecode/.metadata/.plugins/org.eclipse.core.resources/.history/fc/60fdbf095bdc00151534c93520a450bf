@@ -1,0 +1,121 @@
+package org.emc.topology.controllers;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.emc.topology.dataObjects.DataObj;
+import org.emc.topology.dataObjects.EdgeDataObj;
+import org.emc.topology.dataObjects.NodeDataObj;
+import org.emc.topology.dataObjects.TopologyXmlData;
+import org.emc.topology.repositories.XmlUtilities;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+
+import com.google.common.collect.ArrayListMultimap;
+
+
+@Controller
+public class HomeController {
+
+	static final int EDGE_LENGTH_MAIN = 150;
+	static final int EDGE_LENGTH_SUB = 50;
+	
+	@Autowired
+	XmlUtilities xmlUtilities;
+	
+	@RequestMapping("/welcome")
+	public String hello(Model model){
+		model.addAttribute("greeting", "Hello Spring MVC");
+		return "helloWorld";
+	}
+	
+	@RequestMapping("/graph")
+	public String loadGraph(Model model){
+		NodeDataObj obj1 = new NodeDataObj(1, "vArray", "Name:LAB_VARRAY_CLUSTER1 <br> Team: ViPR", "/topology/resources/images/Network-Pipe-icon.png", "image", "vArray");
+		NodeDataObj obj2 = new NodeDataObj(2, "vArray", "Name:LAB_VNX_4981 <br> Team: ViPR", "/topology/resources/images/Network-Pipe-icon.png", "image", "vArray");
+		List<NodeDataObj> lst = new ArrayList<NodeDataObj>();
+		lst.add(obj1);
+		lst.add(obj2);
+		
+		model.addAttribute("list", lst);
+		return "graph";
+	}
+	
+	@RequestMapping("/highlightGraph")
+	public String loadHighlightGraph(Model model){
+		return "highlightNodesGraph";
+	}
+	
+	/*
+	 * Gets the nodes and edges data for the graph topology generation. 
+	 * Parse the topology.xml and build the data needed for visjs.
+	 * */
+	@ResponseBody
+	@RequestMapping("/getGraphData")
+	public DataObj getGraphData(Model model){
+		List<NodeDataObj> nodesList = new ArrayList<NodeDataObj>();
+		List<NodeDataObj> vArrayNodesList = new ArrayList<NodeDataObj>();
+		List<EdgeDataObj> edgesList = new ArrayList<EdgeDataObj>();
+		List<EdgeDataObj> vArrayEdgesList = new ArrayList<EdgeDataObj>();
+		Integer nodeCounter = 1;
+
+		TopologyXmlData topoXmlData = xmlUtilities.parseXml();
+		ArrayListMultimap<String, List<String>> vArrayStoragepoolMap = topoXmlData.getvArrayStoragepoolMap();
+		ArrayListMultimap<String, List<String>> vStoragepoolHostMap = topoXmlData.getvStoragepoolHostMap();
+		ArrayListMultimap<String, List<String>> vStoragepoolVolumeMap  = topoXmlData.getvStoragepoolVolumeMap();
+		/* Loop through multimaps and build nodes and edges*/
+		for(Map.Entry<String, List<String>> entry: vArrayStoragepoolMap.entries() ){
+			// Create vArray Node
+			NodeDataObj vArrayNodeObj = new NodeDataObj(nodeCounter,entry.getKey(), "Name:"+entry.getKey()+" <br> Team: ViPR", "/topology/resources/images/vArray.png", "image", "vArray");
+			nodeCounter++;
+			nodesList.add(vArrayNodeObj);
+			vArrayNodesList.add(vArrayNodeObj);
+			for(String vStoragePool: entry.getValue()){
+				
+				Integer volCount = vStoragepoolVolumeMap.containsKey(vStoragePool)? vStoragepoolVolumeMap.get(vStoragePool).get(0).size():0;
+				
+				
+				// Create vStoragePool node.
+				NodeDataObj vStoragePoolNodeObj = new NodeDataObj(nodeCounter, vStoragePool, "Total Volumes: "+volCount+" <br> Team: ViPR", "/topology/resources/images/vStoragePool.png", "image", "vStoragePool");
+				nodeCounter++;
+				nodesList.add(vStoragePoolNodeObj);
+				// Add edge between vArray and vStoragePool.
+				EdgeDataObj vaspEdge = new EdgeDataObj(vArrayNodeObj.getId(), vStoragePoolNodeObj.getId(), 100, false);
+				edgesList.add(vaspEdge);
+				// Check if the storage pool is mapped to a host.
+				if(vStoragepoolHostMap.containsKey(vStoragePool)){
+					// Create host node
+					List<List<String>> hostList = vStoragepoolHostMap.get(vStoragePool);
+					for(String host: hostList.get(0)){
+						NodeDataObj hostNodeObj = new NodeDataObj(nodeCounter, host, "Name:"+host+" <br> Team: ViPR", "/topology/resources/images/host.png", "image", "host");
+						nodeCounter++;
+						nodesList.add(hostNodeObj);
+						// Add edge between vStoragePool and host.
+						EdgeDataObj sphEdge = new EdgeDataObj(vStoragePoolNodeObj.getId(), hostNodeObj.getId(), 50, false);
+						edgesList.add(sphEdge);
+					}
+				}
+			}
+		}
+		
+		// Now connect all the vArray nodes with dotted edges.
+		Integer vArrayNodesSize = vArrayNodesList.size();
+		for(int i=0; i<vArrayNodesSize-1;i++){
+			EdgeDataObj e = new EdgeDataObj(vArrayNodesList.get(i).getId(), vArrayNodesList.get(i+1).getId(), 250, true);
+			vArrayEdgesList.add(e);
+		}
+		EdgeDataObj e = new EdgeDataObj(vArrayNodesList.get(0).getId(), vArrayNodesList.get(vArrayNodesSize-1).getId(), 250, true);
+		vArrayEdgesList.add(e);
+		
+		// Add the vArrayEdgesList to the main Edges list.
+		edgesList.addAll(vArrayEdgesList);
+		
+		DataObj graphDataObject = new DataObj(nodesList, edgesList);
+		return graphDataObject;
+	}
+	
+}

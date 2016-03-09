@@ -1,0 +1,173 @@
+<html>
+<head>
+<%@ include file="template.jsp"%>
+<script
+	src='<c:url value="/resources/js/datasources/TopologyDataset.js"/>'></script>
+</head>
+<body>
+
+	<h2>CoprHD Topology</h2>
+
+	<div id="mynetwork" class="imgcontainer"></div>
+
+	<script type="text/javascript">
+		var network;
+		var allNodes;
+		var nodes = [];
+		var edges = [];
+		
+		var IMGS_DIR = '${pageContext.servletContext.contextPath}/resources/images/';
+		var highlightActive = false;
+
+		var nodesDataset = new vis.DataSet(); // these come from WorldCup2014.js
+		var edgesDataset = new vis.DataSet(); // these come from WorldCup2014.js
+
+		function getGraphData() {
+			$.ajax({
+				type : "GET",
+				url : "${pageContext.servletContext.contextPath}/getGraphData",
+				success : function(data) {
+					graphData = data;
+					processGraphData();
+				},
+				error : function(e) {
+					console.log("ERROR: ", e);
+				},
+				done : function(e) {
+					console.log("DONE");
+				}
+			});
+		}
+
+		function processGraphData() {
+			var nodesList = graphData.nodes;
+			var edgesList = graphData.edges;
+
+			// Build the nodes.
+			// BUGFIX: need to hardcode group: 1
+			for (index in nodesList) {
+				dataObj = nodesList[index];
+				nodes.push({
+					id : dataObj.id,
+					label : dataObj.label,
+					group : 1,
+					title : dataObj.title,
+					image : dataObj.image,
+					shape : dataObj.shape,
+					meta : dataObj.meta
+				});
+			}
+
+			for (index in edgesList) {
+				dataObj = edgesList[index];
+				edges.push({
+					from : dataObj.from,
+					to : dataObj.to,
+					length : dataObj.length,
+					dashes : dataObj.dashes
+				});
+			}
+			redrawAll();
+		}
+
+		function redrawAll() {
+			nodesDataset = new vis.DataSet(nodes); // these come from WorldCup2014.js
+			edgesDataset = new vis.DataSet(edges); // these come from WorldCup2014.js
+
+			var container = document.getElementById('mynetwork');
+			var options = {
+				layout : {
+					randomSeed : 2
+				},
+				physics : false,
+				interaction : {
+					tooltipDelay : 0,
+					hideEdgesOnDrag : true
+				}
+			};
+			var data = {
+				nodes : nodesDataset,
+				edges : edgesDataset
+			} // Note: data is coming from ./datasources/WorldCup2014.js
+
+			network = new vis.Network(container, data, options);
+
+			// get a JSON object
+			allNodes = nodesDataset.get({
+				returnType : "Object"
+			});
+
+			network.on("click", neighbourhoodHighlight);
+			network.on("doubleClick", function (params) {
+				redrawAll();
+			});
+		}
+
+		function neighbourhoodHighlight(params) {
+			// if something is selected:
+			if (params.nodes.length > 0) {
+				highlightActive = true;
+				var i, j;
+				var selectedNode = params.nodes[0];
+				var degrees = 1;
+
+				// mark all nodes as hard to read.
+				for ( var nodeId in allNodes) {
+					allNodes[nodeId].color = 'rgba(200,200,200,0.5)';
+					var disabledImageName = IMGS_DIR+allNodes[nodeId].meta+"-disabled.png"; 
+					allNodes[nodeId].image = disabledImageName;
+					if (allNodes[nodeId].hiddenLabel === undefined) {
+						allNodes[nodeId].hiddenLabel = allNodes[nodeId].label;
+						allNodes[nodeId].label = undefined;
+					}
+				}
+				var connectedNodes = network.getConnectedNodes(selectedNode);
+				var allConnectedNodes = [];
+
+				// all first degree nodes get their own color and their label back
+				for (i = 0; i < connectedNodes.length; i++) {
+					allNodes[connectedNodes[i]].color = undefined;
+					var enabledImageName = IMGS_DIR+allNodes[connectedNodes[i]].meta+".png";
+					allNodes[connectedNodes[i]].image = enabledImageName;
+					if (allNodes[connectedNodes[i]].hiddenLabel !== undefined) {
+						allNodes[connectedNodes[i]].label = allNodes[connectedNodes[i]].hiddenLabel;
+						allNodes[connectedNodes[i]].hiddenLabel = undefined;
+					}
+				}
+
+				// the main node gets its own color and its label back.
+				var enabledImageName = IMGS_DIR+allNodes[selectedNode].meta+".png";
+				allNodes[selectedNode].color = undefined;
+				allNodes[selectedNode].image = enabledImageName;
+				if (allNodes[selectedNode].hiddenLabel !== undefined) {
+					allNodes[selectedNode].label = allNodes[selectedNode].hiddenLabel;
+					allNodes[selectedNode].hiddenLabel = undefined;
+				}
+			} else if (highlightActive === true) {
+				// reset all nodes
+				for ( var nodeId in allNodes) {
+					allNodes[nodeId].color = undefined;
+					var enabledImageName = IMGS_DIR+allNodes[nodeId].meta+".png";
+					allNodes[nodeId].image = enabledImageName;
+					if (allNodes[nodeId].hiddenLabel !== undefined) {
+						allNodes[nodeId].label = allNodes[nodeId].hiddenLabel;
+						allNodes[nodeId].hiddenLabel = undefined;
+					}
+				}
+				highlightActive = false
+			}
+
+			// transform the object into an array
+			var updateArray = [];
+			for (nodeId in allNodes) {
+				if (allNodes.hasOwnProperty(nodeId)) {
+					updateArray.push(allNodes[nodeId]);
+				}
+			}
+			nodesDataset.update(updateArray);
+		}
+		getGraphData();
+	</script>
+
+</body>
+</html>

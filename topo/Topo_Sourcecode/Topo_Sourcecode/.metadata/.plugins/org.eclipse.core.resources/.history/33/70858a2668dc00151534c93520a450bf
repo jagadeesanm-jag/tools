@@ -1,0 +1,5 @@
+.imgcontainer {
+	width: 60%;
+	border: 2px solid lightslategray;
+	background: #f2f2f2;
+}
